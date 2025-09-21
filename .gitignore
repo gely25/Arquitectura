@@ -1,0 +1,24 @@
+# Entorno virtual
+venv/
+
+# Archivos compilados y caches
+*.pyc
+*.pyo
+__pycache__/
+
+# Carpeta de medios y estáticos pesados
+media/
+staticfiles/
+
+# Logs y bases de datos locales
+*.log
+*.sqlite3
+
+# Configuración de IDE
+.vscode/
+.idea/
+
+# Otros archivos pesados de dependencias
+*.egg-info/
+dist/
+build/
