@@ -108,3 +108,27 @@ class DetectView(APIView):
 def objects_view(request):
     global last_labels
     return JsonResponse({"labels": last_labels})
+
+
+
+
+
+
+########## Unión de API
+
+from googletrans import Translator
+
+translator = Translator()
+
+def send_to_flashcards(label):
+    url = "http://localhost:8002/api/flashcards/add/"
+    traduccion = translator.translate(label, src="en", dest="es").text
+    data = {
+        "palabra": label,
+        "traduccion": traduccion
+    }
+    try:
+        response = requests.post(url, json=data)
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": str(e)}
