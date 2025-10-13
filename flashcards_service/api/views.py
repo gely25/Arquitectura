@@ -28,3 +28,23 @@ def flashcards_list(request):
     flashcards = Flashcard.objects.all()
     data = [{"id": f.id, "palabra": f.palabra, "traduccion": f.traduccion} for f in flashcards]
     return JsonResponse(data, safe=False)
+
+
+
+
+
+from django.utils import timezone
+
+def review_flashcards(request):
+    today = timezone.now().date()
+    flashcards = Flashcard.objects.filter(next_review__lte=today)
+    data = [
+        {
+            "id": f.id,
+            "palabra": f.palabra,
+            "traduccion": f.traduccion,
+            "imagen": f.imagen.url if f.imagen else ""
+        }
+        for f in flashcards
+    ]
+    return JsonResponse(data, safe=False)
