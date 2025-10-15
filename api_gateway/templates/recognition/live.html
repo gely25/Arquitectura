@@ -19,7 +19,6 @@
             padding-bottom: 40px;
         }
 
-        /* Header / Navbar */
         .navbar {
             background: #2d2d44;
             padding: 15px 40px;
@@ -85,7 +84,6 @@
             font-weight: bold;
         }
 
-        /* Hero Section */
         .hero {
             background: rgba(255, 255, 255, 0.95);
             margin: 30px 40px;
@@ -113,7 +111,6 @@
             margin-left: 50px;
         }
 
-        /* Main Content */
         .main-content {
             display: grid;
             grid-template-columns: 1.3fr 1fr;
@@ -142,7 +139,6 @@
             font-size: 24px;
         }
 
-        /* Video Container */
         .video-wrapper {
             position: relative;
             background: #1a1a2e;
@@ -151,6 +147,7 @@
             aspect-ratio: 4/3;
         }
 
+        .video-wrapper video,
         .video-wrapper img {
             width: 100%;
             height: 100%;
@@ -167,6 +164,23 @@
             border-radius: 20px;
             font-size: 14px;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .live-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
         .deactivate-btn {
@@ -259,7 +273,6 @@
             box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
         }
 
-        /* Objects Panel */
         .objects-header {
             text-align: center;
             color: #2d2d44;
@@ -423,7 +436,6 @@
 </head>
 <body>
 
-    <!-- Navbar -->
     <nav class="navbar">
         <div class="logo">
             <div class="logo-icon">
@@ -437,10 +449,8 @@
             <li><a href="#">Juego</a></li>
             <li><a href="#">Clasificación</a></li>
         </ul>
-     
     </nav>
 
-    <!-- Hero Section -->
     <section class="hero">
         <h1 class="hero-title">
             <span class="hero-icon"><i class="fas fa-camera-retro"></i></span>
@@ -449,9 +459,7 @@
         <p class="hero-subtitle">Apunta tu cámara a objetos cercanos y aprende sus nombres en inglés</p>
     </section>
 
-    <!-- Main Content -->
     <div class="main-content">
-        <!-- Camera Card -->
         <div class="card">
             <div class="card-header">
                 <span class="card-icon"><i class="fas fa-video"></i></span>
@@ -467,19 +475,18 @@
                     <p>Activa tu cámara para comenzar a identificar objetos y aprender vocabulario en inglés</p>
                     <button class="activate-btn" onclick="activateCamera()">Activar Cámara</button>
                 </div>
-                <img id="videoFeed" src="http://127.0.0.1:8001/video_feed/" style="display: none;" alt="Streaming de cámara">
-                <div class="live-badge" id="liveBadge" style="display: none;">En vivo</div>
+                <img id="videoFeed" style="display: none;" alt="Streaming de cámara">
+                <div class="live-badge" id="liveBadge" style="display: none;">LIVE</div>
                 <button class="deactivate-btn" id="deactivateBtn" style="display: none;" onclick="deactivateCamera()">
                     <i class="fas fa-stop-circle"></i> Desactivar
                 </button>
             </div>
 
-            <button class="detect-btn" id="detectBtn" style="display: none;">
+            <button class="detect-btn" id="detectBtn" style="display: none;" onclick="detectAgain()">
                 <i class="fas fa-camera"></i> Detectar de Nuevo
             </button>
         </div>
 
-        <!-- Objects Detection Card -->
         <div class="card">
             <div class="objects-header">Objetos Detectados</div>
             
@@ -506,146 +513,194 @@
             </div>
 
             <button class="flashcards-btn">
-                <i class="fas fa-layer-group"></i> Flashcards
+                <i class="fas fa-layer-group"></i> Ver Flashcards
             </button>
         </div>
     </div>
 
     <div id="message"></div>
 
-    <script>
-        const addedObjects = new Set();
-        let cameraActive = false;
+<script>
+    const addedObjects = new Set();
+    let cameraActive = false;
+    let fetchInterval;
 
-        function activateCamera() {
+    async function activateCamera() {
+        try {
+            const response = await fetch("http://127.0.0.1:8001/api/start_camera/");
+            if (!response.ok) {
+                throw new Error('No se pudo iniciar la cámara');
+            }
+            
             cameraActive = true;
+            const videoFeed = document.getElementById('videoFeed');
+            
+            // Agregar timestamp para evitar caché
+            videoFeed.src = `http://127.0.0.1:8001/video_feed/?t=${Date.now()}`;
+            videoFeed.onerror = () => {
+                console.error('Error cargando el stream de video');
+                showMessage("❌ Error al cargar el video. Verifica el backend.", "#ef4444");
+            };
+            
             document.getElementById('cameraInactive').style.display = 'none';
-            document.getElementById('videoFeed').style.display = 'block';
-            document.getElementById('liveBadge').style.display = 'block';
+            videoFeed.style.display = 'block';
+            document.getElementById('liveBadge').style.display = 'flex';
             document.getElementById('deactivateBtn').style.display = 'flex';
             document.getElementById('detectBtn').style.display = 'flex';
             document.getElementById('helpBox').style.display = 'none';
+            
             startFetchingObjects();
+            showMessage("✅ Cámara activada", "#10b981");
+        } catch (err) {
+            console.error("Error iniciando cámara:", err);
+            showMessage("❌ Error al iniciar la cámara", "#ef4444");
         }
+    }
 
-        function deactivateCamera() {
-            cameraActive = false;
-            document.getElementById('cameraInactive').style.display = 'flex';
-            document.getElementById('videoFeed').style.display = 'none';
-            document.getElementById('liveBadge').style.display = 'none';
-            document.getElementById('deactivateBtn').style.display = 'none';
-            document.getElementById('detectBtn').style.display = 'none';
-            document.getElementById('helpBox').style.display = 'block';
-            stopFetchingObjects();
+    async function deactivateCamera() {
+        try {
+            await fetch("http://127.0.0.1:8001/api/stop_camera/");
+        } catch (err) {
+            console.error("Error deteniendo la cámara:", err);
         }
+        
+        cameraActive = false;
+        const videoFeed = document.getElementById('videoFeed');
+        videoFeed.src = '';
+        
+        document.getElementById('cameraInactive').style.display = 'flex';
+        videoFeed.style.display = 'none';
+        document.getElementById('liveBadge').style.display = 'none';
+        document.getElementById('deactivateBtn').style.display = 'none';
+        document.getElementById('detectBtn').style.display = 'none';
+        document.getElementById('helpBox').style.display = 'block';
+        
+        stopFetchingObjects();
+        showMessage("🔴 Cámara desactivada", "#6b7280");
+    }
 
-        let fetchInterval;
-
-        function startFetchingObjects() {
+    function detectAgain() {
+        if (cameraActive) {
             fetchObjects();
-            fetchInterval = setInterval(fetchObjects, 2000);
+            showMessage("🔄 Detectando objetos...", "#3b82f6");
         }
+    }
 
-        function stopFetchingObjects() {
-            if (fetchInterval) {
-                clearInterval(fetchInterval);
-            }
-            document.getElementById('detectedObjects').innerHTML = `
-                <div class="no-objects">
-                    <div class="search-icon-large">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <p>No hay objetos detectados</p>
-                    <small>Activa tu cámara y apunta a<br>objetos cercanos para<br>comenzar a aprender</small>
-                </div>
-            `;
-        }
+    function startFetchingObjects() {
+        fetchObjects();
+        fetchInterval = setInterval(fetchObjects, 2000);
+    }
 
-        async function fetchObjects() {
-            if (!cameraActive) return;
+    function stopFetchingObjects() {
+        if (fetchInterval) clearInterval(fetchInterval);
+        document.getElementById('detectedObjects').innerHTML = `
+            <div class="no-objects">
+                <div class="search-icon-large"><i class="fas fa-search"></i></div>
+                <p>No hay objetos detectados</p>
+                <small>Activa tu cámara y apunta a<br>objetos cercanos para<br>comenzar a aprender</small>
+            </div>
+        `;
+    }
 
-            try {
-                const res = await fetch("http://127.0.0.1:8001/api/labels/");
-                const data = await res.json();
-                const container = document.getElementById("detectedObjects");
+    async function fetchObjects() {
+        if (!cameraActive) return;
+        try {
+            const res = await fetch("http://127.0.0.1:8001/api/labels/");
+            const data = await res.json();
+            const container = document.getElementById("detectedObjects");
+            container.innerHTML = "";
 
-                container.innerHTML = "";
+            if (data.labels && data.labels.length > 0) {
+                data.labels.forEach(labelData => {
+                    const label = labelData.label || labelData;
+                    const base64Image = labelData.image || null;
 
-                if (data.labels && data.labels.length > 0) {
-                    data.labels.forEach(label => {
-                        const div = document.createElement("div");
-                        div.classList.add("object-detected");
-                        div.innerHTML = `
-                            <div class="object-name">${label}</div>
-                            <div class="object-actions">
-                                <button class="btn btn-listen" onclick="speak('${label}')">
-                                    <i class="fas fa-volume-up"></i> Escuchar
-                                </button>
-                                <button class="btn btn-add" onclick="addFlashcard('${label}')">
-                                    <i class="fas fa-plus"></i> Añadir
-                                </button>
-                            </div>
-                        `;
-                        container.appendChild(div);
-                    });
-                } else {
-                    container.innerHTML = `
-                        <div class="no-objects">
-                            <div class="search-icon-large">
-                                <i class="fas fa-search"></i>
-                            </div>
-                            <p>No hay objetos detectados</p>
-                            <small>Mueve la cámara hacia<br>objetos cercanos</small>
+                    const div = document.createElement("div");
+                    div.classList.add("object-detected");
+                    div.innerHTML = `
+                        <div class="object-name">${label}</div>
+                        <div class="object-actions">
+                            <button class="btn btn-listen" onclick="speak('${label}')">
+                                <i class="fas fa-volume-up"></i> Escuchar
+                            </button>
+                            <button class="btn btn-add" onclick="addFlashcard('${label}', '${base64Image || ''}')">
+                                <i class="fas fa-plus"></i> Añadir
+                            </button>
                         </div>
                     `;
-                }
-            } catch (err) {
-                console.error("Error obteniendo objetos:", err);
-            }
-        }
-
-        async function addFlashcard(label) {
-            if (addedObjects.has(label)) {
-                showMessage("🟡 Ya fue añadido anteriormente: " + label, "#eab308");
-                return;
-            }
-
-            try {
-                const res = await fetch("http://127.0.0.1:8002/api/flashcards/add/", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ palabra: label })
+                    container.appendChild(div);
                 });
-
-                if (res.ok) {
-                    addedObjects.add(label);
-                    showMessage("✅ Añadido exitosamente: " + label, "#10b981");
-                } else {
-                    showMessage("❌ Error al añadir", "#ef4444");
-                }
-            } catch (err) {
-                showMessage("❌ Error de conexión", "#ef4444");
+            } else {
+                container.innerHTML = `
+                    <div class="no-objects">
+                        <div class="search-icon-large"><i class="fas fa-search"></i></div>
+                        <p>No hay objetos detectados</p>
+                        <small>Mueve la cámara hacia<br>objetos cercanos</small>
+                    </div>
+                `;
             }
+        } catch (err) {
+            console.error("Error obteniendo objetos:", err);
+        }
+    }
+
+    async function addFlashcard(label, base64Image = null) {
+        if (addedObjects.has(label)) {
+            showMessage("🟡 Ya añadiste: " + label, "#eab308");
+            return;
         }
 
-        function speak(label) {
-            const utterance = new SpeechSynthesisUtterance(label);
-            utterance.lang = "en-US";
-            speechSynthesis.speak(utterance);
+        const confirmCreate = confirm(`¿Crear flashcard para "${label}"?`);
+        if (!confirmCreate) return;
+
+        let traduccion = label;
+        try {
+            const resTrans = await fetch(`https://api.mymemory.translated.net/get?q=${label}&langpair=en|es`);
+            const dataTrans = await resTrans.json();
+            traduccion = dataTrans.responseData.translatedText || label;
+        } catch (err) {
+            console.warn("No se pudo traducir");
         }
 
-        function showMessage(text, color) {
-            const msg = document.getElementById("message");
-            msg.textContent = text;
-            msg.style.background = color;
-            msg.style.color = "white";
-            msg.classList.add("show");
+        try {
+            const res = await fetch("http://127.0.0.1:8002/api/flashcards/add/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    palabra: label,
+                    traduccion: traduccion,
+                    imagen: base64Image
+                })
+            });
 
-            setTimeout(() => {
-                msg.classList.remove("show");
-            }, 3000);
+            const data = await res.json();
+
+            if (res.ok) {
+                addedObjects.add(label);
+                showMessage("✅ Flashcard creada: " + label, "#10b981");
+            } else {
+                showMessage("❌ Error: " + (data.error || "no se pudo crear"), "#ef4444");
+            }
+        } catch (err) {
+            showMessage("❌ Error de conexión", "#ef4444");
         }
-    </script>
+    }
+
+    function speak(label) {
+        const utterance = new SpeechSynthesisUtterance(label);
+        utterance.lang = "en-US";
+        speechSynthesis.speak(utterance);
+    }
+
+    function showMessage(text, color) {
+        const msg = document.getElementById("message");
+        msg.textContent = text;
+        msg.style.background = color;
+        msg.style.color = "white";
+        msg.classList.add("show");
+        setTimeout(() => msg.classList.remove("show"), 3000);
+    }
+</script>
 
 </body>
 </html>
